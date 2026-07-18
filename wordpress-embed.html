@@ -1,0 +1,38 @@
+<!-- ============================================================
+     insecure — WordPress Custom HTML block
+     Full-bleed iframe -> the GitHub Pages page. Carries the same
+     white-start style + origin-checked postMessage listener that
+     keeps the iOS status bar/toolbar matching the show.
+     ============================================================ -->
+<style>
+  html, body { background: #ffffff !important; }
+  #ins-embed { position: relative; width: 100vw; left: 50%; right: 50%;
+    margin-left: -50vw; margin-right: -50vw;
+    height: 100svh; height: 100dvh; background: #fff; overflow: hidden; }
+  #ins-embed iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+</style>
+<div id="ins-embed">
+  <iframe
+    src="https://clayburton.github.io/insecure-live/"
+    allow="autoplay; fullscreen"
+    title="insecure — clay and kelsy"></iframe>
+</div>
+<script>
+(function () {
+  var wrap = document.getElementById('ins-embed');
+  window.addEventListener('message', function (e) {
+    if (e.origin !== 'https://clayburton.github.io') return;
+    var d = e.data || {};
+    if (d.iam !== 'bg') return;
+    var c = String(d.color || '');
+    if (!/^#[0-9a-fA-F]{6}$/.test(c)) return;
+    [document.documentElement, document.body, wrap].forEach(function (el) {
+      el.style.setProperty('background', c, 'important');
+    });
+    var m = document.querySelector('meta[name="theme-color"]');
+    if (m) m.setAttribute('content', c);
+  });
+  // one swipe lets Safari minimize its toolbar
+  document.documentElement.style.minHeight = 'calc(100dvh + 1px)';
+})();
+</script>
