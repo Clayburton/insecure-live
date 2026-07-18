@@ -375,6 +375,7 @@
   }
   /* ---------- the play button gets cold feet (on-theme: insecure) ---------- */
   const playSay = document.getElementById("playSay");
+  const playAgain = document.getElementById("playAgain");
   let playState = 0;
   function advancePlay() {
     if (!assetsReady) return;
@@ -382,14 +383,17 @@
       playState = 1;
       playBtn.classList.add("is-ask");                 // dodges right, hides the arrow
       playSay.textContent = "...are you sure?";
+      landing.classList.add("is-asking");              // reveal the real arrow underneath
     } else if (playState === 1) {
       playState = 2;
       playBtn.classList.add("is-relent");
       playSay.textContent = "ok..but don't judge me";
+      landing.classList.remove("is-asking");
       setTimeout(start, 1200);
     }
   }
   playBtn.addEventListener("click", advancePlay);
+  playAgain.addEventListener("click", advancePlay);   // clicking the arrow underneath works too
 
   audio.addEventListener("ended", function () {
     running = false;
@@ -435,14 +439,17 @@
   });
 
   /* ============================================================
-     PER-LETTER INTERACTION — the last ~30 seconds
-     As the cursor nears a letter it shrinks toward invisible (the
-     word never reflows — each glyph sits in a fixed slot). Click a
-     letter and it takes on a random typeface from the other videos.
+     PER-LETTER INTERACTION (whole video)
+     As the cursor nears a letter it shrinks toward invisible, then
+     grows back as you pull away — the word never reflows (each glyph
+     sits in a fixed-width slot). Click a letter and it takes on a
+     random typeface from the other four videos.
+     Driven directly off pointer movement (not the rAF loop) so it's
+     instant and works even where rAF is throttled.
      ============================================================ */
-  const INTERACT_FROM = 150;                 // last ~30s of the 180s song
-  const HIDE_R = 100;                         // px radius of the shrink field
-  const CLICK_R = 130;                        // px you must be within to change a letter
+  const INTERACT_FROM = 0;                    // active the whole video
+  const HIDE_R = 110;                          // px radius of the shrink field
+  const CLICK_R = 140;                         // px you must be within to change a letter
   const OTHER_FONTS = [                        // faces from the other four lyric videos
     ['"clarendon-urw"', 700, "normal"],   ['"arial-rounded-mt-pro"', 700, "normal"],
     ['"vag-rundschrift-d"', 400, "normal"], ['"stencil-std"', 400, "normal"],
@@ -454,8 +461,6 @@
     ['Georgia', 700, "italic"],           ['"helvetica-neue-lt-pro-cond"', 900, "normal"],
   ];
   const imouse = { x: -1e4, y: -1e4, on: false };
-  window.addEventListener("pointermove", function (e) { imouse.x = e.clientX; imouse.y = e.clientY; imouse.on = true; });
-  window.addEventListener("pointerout", function (e) { if (!e.relatedTarget) imouse.on = false; });
 
   function ispanify(el) {
     if (el.dataset.ilet || el.querySelector("img")) return;
@@ -468,39 +473,52 @@
       s.textContent = ch;
       el.appendChild(s);
     }
-    // lock each slot to its natural width so a font swap never reflows the word
+    // lock each slot to its natural width so a shrink/font-swap never reflows the word
     el.querySelectorAll(".ilet").forEach(function (s) {
       if (!s.textContent.trim()) { s.style.width = "0.32em"; return; }
       s.style.width = s.getBoundingClientRect().width + "px";
     });
     el.dataset.ilet = "1";
   }
-  function interactFrame(t) {
-    if (t < INTERACT_FROM) return;
+  function eligible(cue) { return !(cue.img || cue.steps || cue.fontCycle || cue.fx); }
+  // spanify every static cue AND shrink its letters by cursor proximity.
+  // Self-contained so it's correct whether called from the rAF loop or a pointer move.
+  function applyShrink() {
+    if (lastT < INTERACT_FROM) return;
     mounted.forEach(function (el, idx) {
-      const cue = CUES[idx];
-      if (cue.img || cue.steps || cue.fontCycle || cue.fx) return;   // static text only
+      if (!eligible(CUES[idx])) return;
       ispanify(el);
-      const letters = el.querySelectorAll(".ilet");
+      const letters = el.getElementsByClassName("ilet");
       for (let i = 0; i < letters.length; i++) {
         const s = letters[i];
         if (!s.textContent.trim()) continue;
         const r = s.getBoundingClientRect();
+        if (!r.width) continue;
         const d = imouse.on ? Math.hypot(imouse.x - (r.left + r.width / 2), imouse.y - (r.top + r.height / 2)) : 1e9;
-        const sc = d < HIDE_R ? (0.04 + 0.96 * (d / HIDE_R)) : 1;    // near cursor → almost gone
+        const sc = d < HIDE_R ? (0.05 + 0.95 * (d / HIDE_R)) : 1;   // near → almost gone; far → full size
         s.style.transform = sc < 0.999 ? "scale(" + sc.toFixed(3) + ")" : "";
       }
     });
   }
-  stage.addEventListener("pointerdown", function (e) {
+  const interactFrame = function (t) { if (t >= INTERACT_FROM) applyShrink(); };
+  window.addEventListener("pointermove", function (e) {
+    imouse.x = e.clientX; imouse.y = e.clientY; imouse.on = true;
+    if (running) applyShrink();                 // instant, independent of the rAF loop
+  });
+  document.addEventListener("mouseleave", function () { imouse.on = false; if (running) applyShrink(); });
+
+  // click a letter → a random typeface from the other four videos
+  window.addEventListener("pointerdown", function (e) {
     if (!running || lastT < INTERACT_FROM) return;
     let best = null, bd = 1e9;
-    cueLayer.querySelectorAll(".ilet").forEach(function (s) {
-      if (!s.textContent.trim()) return;
+    const spans = cueLayer.getElementsByClassName("ilet");
+    for (let i = 0; i < spans.length; i++) {
+      const s = spans[i];
+      if (!s.textContent.trim()) continue;
       const r = s.getBoundingClientRect();
       const d = Math.hypot(e.clientX - (r.left + r.width / 2), e.clientY - (r.top + r.height / 2));
       if (d < bd) { bd = d; best = s; }
-    });
+    }
     if (best && bd < CLICK_R) {
       const f = OTHER_FONTS[(Math.random() * OTHER_FONTS.length) | 0];
       best.style.fontFamily = f[0];

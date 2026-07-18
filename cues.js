@@ -10,8 +10,8 @@
 const CUES=[];
 function C(o){ CUES.push(o); }
 
-C({ s:0, e:0.834, text:"insecure", role:"sans", weight:400, fit:0.52, y:50 });
-C({ s:0, e:0.834, text:"clay and kelsy", role:"sans", weight:400, fit:0.42, y:50 });
+C({ s:0, e:0.834, text:"insecure", role:"sans", weight:400, fit:0.56, y:43 });
+C({ s:0, e:0.834, text:"clay and kelsy", role:"sans", weight:400, fit:0.55, y:60 });
 C({ s:0.834, e:1.335, text:"made by clay", role:"sans", weight:400, fit:0.21, y:50 });
 C({ s:1.802, e:3.403, text:"if anything", role:"sans", weight:700, fit:0.3, y:50 });
 C({ s:5.138, e:6.54, text:"we're just going back", role:"sans", weight:700, fit:0.65, y:50 });

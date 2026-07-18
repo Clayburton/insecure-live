@@ -194,25 +194,33 @@ body.playing .cue { cursor: default; }
   transition: opacity .5s ease;
 }
 .landing.is-gone { opacity: 0; pointer-events: none; }
-.landing__mark { text-align: center; padding: 6vw; }
+.landing__mark {
+  text-align: center;
+  padding: 6vw;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
 .landing__eyebrow {
   font-family: var(--mono);
   text-transform: uppercase;
-  letter-spacing: .34em;
-  font-size: clamp(11px, 1.4vw, 15px);
+  letter-spacing: .38em;
+  font-size: clamp(10px, 1.3vw, 14px);
   color: #111;
-  margin-left: .34em;
-  margin-bottom: 2.2rem;
+  margin-left: .38em;
+  margin-bottom: clamp(1.4rem, 4vh, 3rem);
 }
 .landing__title {
   font-family: "Playfair Display", Georgia, serif;
   font-style: italic;
   font-weight: 500;
-  letter-spacing: .005em;
-  font-size: clamp(40px, 9.5vw, 128px);
-  line-height: .98;
+  letter-spacing: .01em;
+  /* capped by BOTH width and height so it can never crowd the eyebrow on a short/wide screen */
+  font-size: clamp(38px, min(8.5vw, 16vh), 120px);
+  line-height: 1;
   color: #111;
-  margin-bottom: 2.6rem;
+  margin: 0 0 clamp(1.6rem, 5vh, 3.2rem);
 }
 .playbtn {
   display: inline-flex; align-items: center; justify-content: center;
@@ -246,6 +254,21 @@ body.playing .cue { cursor: default; }
 .playbtn.is-ask .playbtn__say, .playbtn.is-relent .playbtn__say { display: inline; }
 .playbtn.is-ask:hover, .playbtn.is-relent:hover { transform: translateX(clamp(80px, 24vw, 260px)); }
 .playbtn.is-relent:hover { transform: translateX(0); }
+/* the real play arrow that stays behind when the button dodges away */
+.playagain {
+  display: none;
+  margin-top: 1.4rem;
+  padding: 1.1rem;
+  background: none; border: none; cursor: pointer;
+  transition: transform .18s ease, opacity .4s ease;
+  opacity: 0;
+}
+.landing.is-asking .playagain { display: inline-flex; opacity: 1; }
+.playagain:hover { transform: scale(1.08); }
+.playagain:active { transform: scale(0.96); }
+.playagain .playbtn__tri {
+  border-width: clamp(16px, 2.6vw, 28px) 0 clamp(16px, 2.6vw, 28px) clamp(24px, 4vw, 44px);
+}
 
 /* transient sync-nudge readout */
 .toast {
