@@ -440,27 +440,58 @@
 
   /* ============================================================
      PER-LETTER INTERACTION (whole video)
-     As the cursor nears a letter it shrinks toward invisible, then
-     grows back as you pull away — the word never reflows (each glyph
-     sits in a fixed-width slot). Click a letter and it takes on a
-     random typeface from the other four videos.
-     Driven directly off pointer movement (not the rAF loop) so it's
-     instant and works even where rAF is throttled.
+     Hover a letter and it shrinks toward invisible, then grows back
+     as you pull away (the word never reflows — each glyph sits in a
+     fixed-width slot). Click OR drag/swipe across letters and each
+     takes on a random typeface from the whole Adobe-Fonts kit (incl.
+     Wingdings). After "i tried to tell you what went wrong" a changed
+     letter also has a chance to flip mirror-image.
+     Driven straight off pointer movement so it's instant and works on
+     touch (swipe) too.
      ============================================================ */
-  const INTERACT_FROM = 0;                    // active the whole video
-  const HIDE_R = 110;                          // px radius of the shrink field
-  const CLICK_R = 140;                         // px you must be within to change a letter
-  const OTHER_FONTS = [                        // faces from the other four lyric videos
-    ['"clarendon-urw"', 700, "normal"],   ['"arial-rounded-mt-pro"', 700, "normal"],
+  const INTERACT_FROM = 0;                     // active the whole video
+  const HIDE_R = 55;                           // px radius of the shrink field (small)
+  const CLICK_R = 130;                         // px you must be within to change a letter
+  const MIRROR_FROM = 84.32;                   // after "...what went wrong": letters may mirror
+  const DRAG_STEP = 22;                        // change a letter every ~22px of drag travel
+  // the scramble deck — every face from the kit + the two brand faces (all embedded, no Adobe login needed to view)
+  const OTHER_FONTS = [
+    ['"clarendon-urw"', 700, "normal"], ['"arial-rounded-mt-pro"', 700, "normal"],
     ['"vag-rundschrift-d"', 400, "normal"], ['"stencil-std"', 400, "normal"],
-    ['"rosewood-std-daphne"', 400, "normal"], ['"cottonwood-std"', 400, "normal"],
-    ['"hwt-artz"', 400, "normal"],        ['"brush-script-std"', 400, "normal"],
-    ['"felt-tip-roman"', 400, "normal"],  ['"letter-gothic-std"', 700, "normal"],
+    ['"rosewood-std-daphne"', 400, "normal"], ['"rosewood-std-fill"', 400, "normal"],
+    ['"cottonwood-std"', 400, "normal"], ['"brush-script-std"', 400, "normal"],
+    ['"felt-tip-roman"', 400, "normal"], ['"letter-gothic-std"', 700, "normal"],
     ['"prestige-elite-std"', 400, "normal"], ['"ltc-bodoni-175"', 400, "italic"],
-    ['"p22-marcel-script-pro"', 400, "normal"], ['"Bodoni Moda"', 900, "normal"],
-    ['Georgia', 700, "italic"],           ['"helvetica-neue-lt-pro-cond"', 900, "normal"],
+    ['"hwt-artz"', 400, "normal"], ['"p22-marcel-script-pro"', 400, "normal"],
+    ['"birch-std"', 400, "normal"], ['"blackoak-std"', 400, "normal"],
+    ['"poplar-std"', 400, "normal"], ['"mesquite-std"', 400, "normal"],
+    ['"zebrawood-std"', 400, "normal"], ['"juniper-std"', 400, "normal"],
+    ['"ponderosa-std"', 400, "normal"], ['"nueva-std"', 400, "normal"],
+    ['"trajan-pro-3"', 400, "normal"], ['"hobo-std"', 400, "normal"],
+    ['"orator-std"', 400, "normal"], ['"charlemagne-std"', 400, "normal"],
+    ['"lithos-pro"', 400, "normal"], ['"herculanum-lt-pro"', 400, "normal"],
+    ['"copperplate"', 500, "normal"], ['"bank-gothic-bt"', 500, "normal"],
+    ['"bickham-script-pro-3"', 600, "normal"], ['"tekton-pro"', 400, "normal"],
+    ['"ocr-a-std"', 400, "normal"], ['"caflisch-script-pro"', 300, "normal"],
+    ['"adobe-handwriting-ernie"', 400, "normal"], ['"bookmania"', 700, "normal"],
+    ['"chaparral-pro"', 400, "italic"], ['"balloon-urw"', 300, "normal"],
+    ['"grafolita-script"', 400, "normal"], ['"reklame-script"', 900, "normal"],
+    ['"wingdings"', 400, "normal"], ['"webdings"', 400, "normal"],
+    ['"itc-zapf-dingbats-std"', 400, "normal"],
+    ['"Bodoni Moda"', 900, "normal"], ['Georgia', 700, "italic"],
+    ['"helvetica-neue-lt-pro-cond"', 900, "normal"],
   ];
   const imouse = { x: -1e4, y: -1e4, on: false };
+  let idrag = null;                            // {x,y,acc} while a pointer is held down
+
+  // warm the whole scramble deck in the background (never gates play) so a swap is instant
+  if (document.fonts && document.fonts.load) {
+    setTimeout(function () {
+      OTHER_FONTS.forEach(function (f) {
+        try { document.fonts.load((f[2] === "italic" ? "italic " : "") + f[1] + ' 24px ' + f[0]); } catch (e) {}
+      });
+    }, 1800);
+  }
 
   function ispanify(el) {
     if (el.dataset.ilet || el.querySelector("img")) return;
@@ -481,8 +512,7 @@
     el.dataset.ilet = "1";
   }
   function eligible(cue) { return !(cue.img || cue.steps || cue.fontCycle || cue.fx); }
-  // spanify every static cue AND shrink its letters by cursor proximity.
-  // Self-contained so it's correct whether called from the rAF loop or a pointer move.
+  // spanify every static cue AND shrink its letters by cursor proximity (mirror state preserved).
   function applyShrink() {
     if (lastT < INTERACT_FROM) return;
     mounted.forEach(function (el, idx) {
@@ -496,37 +526,53 @@
         if (!r.width) continue;
         const d = imouse.on ? Math.hypot(imouse.x - (r.left + r.width / 2), imouse.y - (r.top + r.height / 2)) : 1e9;
         const sc = d < HIDE_R ? (0.05 + 0.95 * (d / HIDE_R)) : 1;   // near → almost gone; far → full size
-        s.style.transform = sc < 0.999 ? "scale(" + sc.toFixed(3) + ")" : "";
+        const mir = s.dataset.mir === "1" ? -1 : 1;
+        s.style.transform = (mir < 0 || sc < 0.999) ? "scale(" + (mir * sc).toFixed(3) + "," + sc.toFixed(3) + ")" : "";
       }
     });
   }
   const interactFrame = function (t) { if (t >= INTERACT_FROM) applyShrink(); };
-  window.addEventListener("pointermove", function (e) {
-    imouse.x = e.clientX; imouse.y = e.clientY; imouse.on = true;
-    if (running) applyShrink();                 // instant, independent of the rAF loop
-  });
-  document.addEventListener("mouseleave", function () { imouse.on = false; if (running) applyShrink(); });
 
-  // click a letter → a random typeface from the other four videos
-  window.addEventListener("pointerdown", function (e) {
-    if (!running || lastT < INTERACT_FROM) return;
+  // change the letter nearest a point → a random typeface (+ mirror chance late in the song)
+  function changeLetterAt(x, y) {
     let best = null, bd = 1e9;
     const spans = cueLayer.getElementsByClassName("ilet");
     for (let i = 0; i < spans.length; i++) {
       const s = spans[i];
       if (!s.textContent.trim()) continue;
       const r = s.getBoundingClientRect();
-      const d = Math.hypot(e.clientX - (r.left + r.width / 2), e.clientY - (r.top + r.height / 2));
+      const d = Math.hypot(x - (r.left + r.width / 2), y - (r.top + r.height / 2));
       if (d < bd) { bd = d; best = s; }
     }
-    if (best && bd < CLICK_R) {
-      const f = OTHER_FONTS[(Math.random() * OTHER_FONTS.length) | 0];
-      best.style.fontFamily = f[0];
-      best.style.fontWeight = f[1];
-      best.style.fontStyle = f[2];
-      best.dataset.scrambled = "1";
+    if (!best || bd >= CLICK_R) return;
+    const f = OTHER_FONTS[(Math.random() * OTHER_FONTS.length) | 0];
+    best.style.fontFamily = f[0];
+    best.style.fontWeight = f[1];
+    best.style.fontStyle = f[2];
+    best.dataset.scrambled = "1";
+    if (lastT >= MIRROR_FROM && Math.random() < 0.45) best.dataset.mir = "1";   // flip it
+  }
+
+  window.addEventListener("pointermove", function (e) {
+    imouse.x = e.clientX; imouse.y = e.clientY; imouse.on = true;
+    if (!running) return;
+    applyShrink();                              // instant, independent of the rAF loop
+    if (idrag) {                                // drag / swipe = keep changing letters along the path
+      idrag.acc += Math.hypot(e.clientX - idrag.x, e.clientY - idrag.y);
+      idrag.x = e.clientX; idrag.y = e.clientY;
+      if (idrag.acc >= DRAG_STEP) { idrag.acc = 0; changeLetterAt(e.clientX, e.clientY); applyShrink(); }
     }
   });
+  document.addEventListener("mouseleave", function () { imouse.on = false; if (running) applyShrink(); });
+
+  window.addEventListener("pointerdown", function (e) {
+    if (!running || lastT < INTERACT_FROM) return;
+    idrag = { x: e.clientX, y: e.clientY, acc: 0 };
+    changeLetterAt(e.clientX, e.clientY);
+    applyShrink();
+  });
+  window.addEventListener("pointerup", function () { idrag = null; });
+  window.addEventListener("pointercancel", function () { idrag = null; });
 
   /* ---------- the game rides on the engine ---------- */
   if (window.__game) __game.init({

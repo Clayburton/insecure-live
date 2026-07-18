@@ -263,9 +263,10 @@ body.playing .cue { cursor: default; }
   transition: transform .18s ease, opacity .4s ease;
   opacity: 0;
 }
-.landing.is-asking .playagain { display: inline-flex; opacity: 1; }
-.playagain:hover { transform: scale(1.08); }
-.playagain:active { transform: scale(0.96); }
+/* sits to the right, underneath the dodged "...are you sure?" text */
+.landing.is-asking .playagain { display: inline-flex; opacity: 1; transform: translateX(clamp(80px, 24vw, 260px)); }
+.landing.is-asking .playagain:hover { transform: translateX(clamp(80px, 24vw, 260px)) scale(1.08); }
+.landing.is-asking .playagain:active { transform: translateX(clamp(80px, 24vw, 260px)) scale(0.96); }
 .playagain .playbtn__tri {
   border-width: clamp(16px, 2.6vw, 28px) 0 clamp(16px, 2.6vw, 28px) clamp(24px, 4vw, 44px);
 }
