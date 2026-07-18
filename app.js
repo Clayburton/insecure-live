@@ -263,6 +263,7 @@
       if (t >= c.s && t < c.e) update(i, c, t);
       else if (mounted.has(i)) unmount(i);
     }
+    interactFrame(t);          // the last 30s: the letters get shy
     if (window.__game) __game.tick();
   }
 
@@ -309,6 +310,12 @@
     '400 24px "Bodoni Moda"', '700 24px "Bodoni Moda"', '800 24px "Bodoni Moda"', '900 24px "Bodoni Moda"',
     'italic 600 24px "Bodoni Moda"', 'italic 700 24px "Bodoni Moda"',
     'italic 500 24px "Playfair Display"',
+    // the other videos' faces — warmed so the click-to-scramble swap is instant
+    '700 24px "clarendon-urw"', '700 24px "arial-rounded-mt-pro"', '400 24px "vag-rundschrift-d"',
+    '400 24px "stencil-std"', '400 24px "rosewood-std-daphne"', '400 24px "cottonwood-std"',
+    '400 24px "hwt-artz"', '400 24px "brush-script-std"', '400 24px "felt-tip-roman"',
+    '700 24px "letter-gothic-std"', '400 24px "prestige-elite-std"', 'italic 400 24px "ltc-bodoni-175"',
+    '400 24px "p22-marcel-script-pro"',
   ];
   const PRELOADED = new Map();
   let assetsReady = false;
@@ -366,7 +373,23 @@
     if (p && p.catch) p.catch(function (e) { console.warn("play blocked:", e); });
     requestAnimationFrame(frame);
   }
-  playBtn.addEventListener("click", start);
+  /* ---------- the play button gets cold feet (on-theme: insecure) ---------- */
+  const playSay = document.getElementById("playSay");
+  let playState = 0;
+  function advancePlay() {
+    if (!assetsReady) return;
+    if (playState === 0) {
+      playState = 1;
+      playBtn.classList.add("is-ask");                 // dodges right, hides the arrow
+      playSay.textContent = "...are you sure?";
+    } else if (playState === 1) {
+      playState = 2;
+      playBtn.classList.add("is-relent");
+      playSay.textContent = "ok..but don't judge me";
+      setTimeout(start, 1200);
+    }
+  }
+  playBtn.addEventListener("click", advancePlay);
 
   audio.addEventListener("ended", function () {
     running = false;
@@ -401,13 +424,89 @@
     const isSpace = e.code === "Space" || e.key === " ";
     const isEnter = e.key === "Enter";
     if (isSpace || isEnter) {
-      if (!landing.classList.contains("is-gone")) { e.preventDefault(); start(); }
+      if (!landing.classList.contains("is-gone")) { e.preventDefault(); advancePlay(); }
       else if (!endcard.hidden) { e.preventDefault(); replayBtn.click(); }
       else if (running && isSpace) { e.preventDefault(); if (audio.paused) audio.play(); else audio.pause(); }
     } else if (e.key === "[" || e.key === "]") {
       syncOffset += (e.key === "]" ? 0.01 : -0.01);
       localStorage.setItem("ins_sync", syncOffset.toFixed(3));
       toast("audio sync " + (syncOffset >= 0 ? "+" : "") + syncOffset.toFixed(2) + "s");
+    }
+  });
+
+  /* ============================================================
+     PER-LETTER INTERACTION — the last ~30 seconds
+     As the cursor nears a letter it shrinks toward invisible (the
+     word never reflows — each glyph sits in a fixed slot). Click a
+     letter and it takes on a random typeface from the other videos.
+     ============================================================ */
+  const INTERACT_FROM = 150;                 // last ~30s of the 180s song
+  const HIDE_R = 100;                         // px radius of the shrink field
+  const CLICK_R = 130;                        // px you must be within to change a letter
+  const OTHER_FONTS = [                        // faces from the other four lyric videos
+    ['"clarendon-urw"', 700, "normal"],   ['"arial-rounded-mt-pro"', 700, "normal"],
+    ['"vag-rundschrift-d"', 400, "normal"], ['"stencil-std"', 400, "normal"],
+    ['"rosewood-std-daphne"', 400, "normal"], ['"cottonwood-std"', 400, "normal"],
+    ['"hwt-artz"', 400, "normal"],        ['"brush-script-std"', 400, "normal"],
+    ['"felt-tip-roman"', 400, "normal"],  ['"letter-gothic-std"', 700, "normal"],
+    ['"prestige-elite-std"', 400, "normal"], ['"ltc-bodoni-175"', 400, "italic"],
+    ['"p22-marcel-script-pro"', 400, "normal"], ['"Bodoni Moda"', 900, "normal"],
+    ['Georgia', 700, "italic"],           ['"helvetica-neue-lt-pro-cond"', 900, "normal"],
+  ];
+  const imouse = { x: -1e4, y: -1e4, on: false };
+  window.addEventListener("pointermove", function (e) { imouse.x = e.clientX; imouse.y = e.clientY; imouse.on = true; });
+  window.addEventListener("pointerout", function (e) { if (!e.relatedTarget) imouse.on = false; });
+
+  function ispanify(el) {
+    if (el.dataset.ilet || el.querySelector("img")) return;
+    const txt = el.textContent;
+    el.textContent = "";
+    for (const ch of txt) {
+      if (ch === "\n") { el.appendChild(document.createTextNode("\n")); continue; }
+      const s = document.createElement("span");
+      s.className = "ilet";
+      s.textContent = ch;
+      el.appendChild(s);
+    }
+    // lock each slot to its natural width so a font swap never reflows the word
+    el.querySelectorAll(".ilet").forEach(function (s) {
+      if (!s.textContent.trim()) { s.style.width = "0.32em"; return; }
+      s.style.width = s.getBoundingClientRect().width + "px";
+    });
+    el.dataset.ilet = "1";
+  }
+  function interactFrame(t) {
+    if (t < INTERACT_FROM) return;
+    mounted.forEach(function (el, idx) {
+      const cue = CUES[idx];
+      if (cue.img || cue.steps || cue.fontCycle || cue.fx) return;   // static text only
+      ispanify(el);
+      const letters = el.querySelectorAll(".ilet");
+      for (let i = 0; i < letters.length; i++) {
+        const s = letters[i];
+        if (!s.textContent.trim()) continue;
+        const r = s.getBoundingClientRect();
+        const d = imouse.on ? Math.hypot(imouse.x - (r.left + r.width / 2), imouse.y - (r.top + r.height / 2)) : 1e9;
+        const sc = d < HIDE_R ? (0.04 + 0.96 * (d / HIDE_R)) : 1;    // near cursor → almost gone
+        s.style.transform = sc < 0.999 ? "scale(" + sc.toFixed(3) + ")" : "";
+      }
+    });
+  }
+  stage.addEventListener("pointerdown", function (e) {
+    if (!running || lastT < INTERACT_FROM) return;
+    let best = null, bd = 1e9;
+    cueLayer.querySelectorAll(".ilet").forEach(function (s) {
+      if (!s.textContent.trim()) return;
+      const r = s.getBoundingClientRect();
+      const d = Math.hypot(e.clientX - (r.left + r.width / 2), e.clientY - (r.top + r.height / 2));
+      if (d < bd) { bd = d; best = s; }
+    });
+    if (best && bd < CLICK_R) {
+      const f = OTHER_FONTS[(Math.random() * OTHER_FONTS.length) | 0];
+      best.style.fontFamily = f[0];
+      best.style.fontWeight = f[1];
+      best.style.fontStyle = f[2];
+      best.dataset.scrambled = "1";
     }
   });
 

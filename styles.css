@@ -91,6 +91,17 @@ body.playing { overscroll-behavior: none; touch-action: none; }
   -webkit-text-stroke: 0.035em var(--fg);
 }
 
+/* per-letter interaction (last 30s): each glyph in a fixed slot so a
+   shrink or a font-swap never reflows the word */
+.ilet {
+  display: inline-block;
+  text-align: center;
+  transform-origin: center center;
+  will-change: transform;
+  vertical-align: baseline;
+}
+body.playing .cue { cursor: default; }
+
 /* ---------------- THE GAME ----------------
    The cursor becomes a weapon; the lyrics take the damage.
    Everything monochrome — wounds are displacement, bites and cracks. */
@@ -212,19 +223,29 @@ body.playing { overscroll-behavior: none; touch-action: none; }
 .playbtn:hover { transform: scale(1.08); }
 .playbtn:active { transform: scale(0.96); }
 .playbtn:focus-visible { outline: 2px solid #111; outline-offset: 6px; border-radius: 4px; }
-/* clicking play is the first hit — the arrow bleeds and recoils */
-.playbtn.is-hit { animation: phit .32s ease; }
-.playbtn.is-hit .playbtn__tri { border-color: transparent transparent transparent #c40000; }
-@keyframes phit {
-  25% { transform: translate(9px, -3px) rotate(10deg) scale(.9); }
-  60% { transform: translate(-3px, 2px) rotate(-4deg) scale(1.02); }
-}
 .playbtn__tri {
   width: 0; height: 0;
   border-style: solid;
   border-width: clamp(22px, 3.6vw, 40px) 0 clamp(22px, 3.6vw, 40px) clamp(34px, 5.6vw, 62px);
   border-color: transparent transparent transparent #111;
 }
+/* the play button gets cold feet: dodges right + "...are you sure?",
+   then relents back to center + "ok..but don't judge me" */
+.playbtn { transition: transform .34s cubic-bezier(.2,.8,.2,1), opacity .3s ease; }
+.playbtn__say {
+  display: none;
+  font-family: var(--mono);
+  font-size: clamp(14px, 2.2vw, 22px);
+  letter-spacing: .1em;
+  color: #111;
+  white-space: nowrap;
+}
+.playbtn.is-ask    { transform: translateX(clamp(80px, 24vw, 260px)) !important; }
+.playbtn.is-relent { transform: translateX(0) !important; }
+.playbtn.is-ask .playbtn__tri, .playbtn.is-relent .playbtn__tri { display: none; }
+.playbtn.is-ask .playbtn__say, .playbtn.is-relent .playbtn__say { display: inline; }
+.playbtn.is-ask:hover, .playbtn.is-relent:hover { transform: translateX(clamp(80px, 24vw, 260px)); }
+.playbtn.is-relent:hover { transform: translateX(0); }
 
 /* transient sync-nudge readout */
 .toast {
