@@ -227,16 +227,21 @@ body.playing .cue { cursor: default; }
   padding: 1.2rem; background: none; border: none; cursor: pointer;
   transition: transform .18s ease, opacity .3s ease;
 }
-.playbtn.is-loading { opacity: calc(0.18 + 0.5 * var(--load, 0)); pointer-events: none; }
 .playbtn:hover { transform: scale(1.08); }
 .playbtn:active { transform: scale(0.96); }
 .playbtn:focus-visible { outline: 2px solid #111; outline-offset: 6px; border-radius: 4px; }
 .playbtn__tri {
-  width: 0; height: 0;
-  border-style: solid;
-  border-width: clamp(22px, 3.6vw, 40px) 0 clamp(22px, 3.6vw, 40px) clamp(34px, 5.6vw, 62px);
-  border-color: transparent transparent transparent #111;
+  width: clamp(34px, 5.6vw, 62px);
+  height: auto;
+  display: block;
+  overflow: visible;
 }
+.playbtn__tri .tri-o { fill: none; stroke: #111; stroke-width: 2; stroke-linejoin: round; }
+.playbtn__tri .tri-f { fill: #111; }
+/* while it loads the button can't be clicked — the triangle filling in IS the progress bar */
+.playbtn.is-loading { pointer-events: none; cursor: default; }
+.playbtn.is-ready .playbtn__tri { animation: triPop .55s cubic-bezier(.22, 1.61, .36, 1); }
+@keyframes triPop { 0% { transform: scale(1); } 38% { transform: scale(1.1); } 100% { transform: scale(1); } }
 /* the play button gets cold feet: dodges right + "...are you sure?",
    then relents back to center + "ok..but don't judge me" */
 .playbtn { transition: transform .34s cubic-bezier(.2,.8,.2,1), opacity .3s ease; }
@@ -268,7 +273,7 @@ body.playing .cue { cursor: default; }
 .landing.is-asking .playagain:hover { transform: translateX(clamp(80px, 24vw, 260px)) scale(1.08); }
 .landing.is-asking .playagain:active { transform: translateX(clamp(80px, 24vw, 260px)) scale(0.96); }
 .playagain .playbtn__tri {
-  border-width: clamp(16px, 2.6vw, 28px) 0 clamp(16px, 2.6vw, 28px) clamp(24px, 4vw, 44px);
+  width: clamp(24px, 4vw, 44px);
 }
 
 /* transient sync-nudge readout */

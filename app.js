@@ -318,6 +318,27 @@
     '400 24px "p22-marcel-script-pro"',
   ];
   const PRELOADED = new Map();
+  /* ---------- the play triangle IS the loading bar ----------
+     A hairline outline appears immediately; real load progress fills it
+     black left-to-right; at 100% it settles with a pop and goes live. */
+  const triRect = document.getElementById("triRect");
+  let triShown = 0, triReal = 0, triTrickle = 0, triReady = false;
+  function triProgress(p) { triReal = Math.max(triReal, Math.min(1, p || 0)); }
+  const triTimer = setInterval(function () {
+    triTrickle = Math.min(triTrickle + 0.004, 0.3);       // always alive, never lies far ahead
+    const t = Math.max(triReal, triTrickle);
+    triShown += (t - triShown) * 0.14;
+    if (triReal >= 1 && triShown > 0.985) triShown = 1;
+    if (triRect) triRect.setAttribute("width", (triShown * 62).toFixed(2));
+    if (triShown >= 1) {
+      clearInterval(triTimer);
+      triReady = true;
+      playBtn.classList.remove("is-loading");
+      playBtn.classList.add("is-ready");
+    }
+  }, 40);
+  window.__tri = triProgress;
+
   let assetsReady = false;
   (function preload() {
     const srcs = new Set();
@@ -342,14 +363,14 @@
     playBtn.classList.add("is-loading");
     const tick = function () {
       done++;
-      playBtn.style.setProperty("--load", done / total);
+      triProgress(done / total);
     };
     jobs.forEach(function (p) { Promise.resolve(p).then(tick, tick); });
     // ready when everything lands, or after 8s regardless (never strand the play button)
     const finish = function () {
       if (assetsReady) return;
       assetsReady = true;
-      playBtn.classList.remove("is-loading");
+      triProgress(1);
     };
     Promise.allSettled ? Promise.allSettled(jobs).then(finish) : Promise.all(jobs).then(finish, finish);
     setTimeout(finish, 8000);
